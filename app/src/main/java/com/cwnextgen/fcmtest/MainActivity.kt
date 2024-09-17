@@ -3,6 +3,7 @@ package com.cwnextgen.fcmtest
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -23,29 +24,48 @@ import com.google.firebase.messaging.FirebaseMessaging
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
     var tvToken: TextView? = null
+    var tvPayload: TextView? = null
     var button: Button? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
 
-        button = findViewById(R.id.button)
         tvToken = findViewById(R.id.tvToken)
+        tvPayload = findViewById(R.id.tvPayload)
+        button = findViewById(R.id.button)
+
         button?.setOnClickListener {
-            //copy text from textview
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("token", tvToken?.text)
             clipboard.setPrimaryClip(clip)
-            //toast the copy message
             Toast.makeText(this, "Token copied", Toast.LENGTH_SHORT).show()
         }
+
+
+        // Handle the intent if the app is opened from a notification
+        handleIntent(intent)
+
         getMessagingToken()
         askNotificationPermission()
+
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle the intent if the app is already running
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
+        intent?.extras?.let {
+            val title = it.getString("title", "")
+            val body = it.getString("body", "")
+            val dataPayload = it.getString("dataPayload", "")
+
+            // Display the payload in the TextView
+            tvPayload?.text = "Title: $title\nBody: $body\nData Payload: $dataPayload"
+        }
     }
 
     private fun getMessagingToken() {
@@ -54,39 +74,34 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "getMessagingToken: not success")
                 tvToken?.text = task.exception.toString()
             } else {
-                // Get new FCM registration token
                 val fcmToken = task.result
-                tvToken?.text = fcmToken.toString()
+                tvToken?.text = fcmToken
             }
-
         }
     }
 
     private fun askNotificationPermission() {
-        // This is only necessary for API level >= 33 (TIRAMISU)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                // FCM SDK (and your app) can post notifications.
+                // Permission granted
             } else if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-                // denyExplanation()
+                // Show rationale
             } else {
-                // Directly ask for the permission
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }
 
-    // Declare the launcher at the top of your Activity/Fragment:
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
+        ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // FCM SDK (and your app) can post notifications.
+            // Permission granted
         } else {
-            // denyExplanation()
+            // Permission denied
         }
     }
 }
